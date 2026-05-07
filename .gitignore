@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.DS_Store
+
+# Devvit secrets
+devvit-app/src/config.ts
+
+# Wrangler local state
+.wrangler/
+worker/.dev.vars
+
+# Logs
+*.log

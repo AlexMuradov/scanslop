@@ -1,0 +1,62 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Wrangler
+        run: npm install -g wrangler@4
+      - name: Set Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "${{ secrets.WORKER_CAPTCHA_SECRET_KEY }}" | wrangler secret put CAPTCHA_SECRET_KEY
+          echo "${{ secrets.WORKER_TELEGRAM_BOT_TOKEN }}" | wrangler secret put TELEGRAM_BOT_TOKEN
+          echo "${{ secrets.WORKER_TELEGRAM_CHAT_ID }}" | wrangler secret put TELEGRAM_CHAT_ID
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler deploy
+
+  devvit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: devvit-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Generate config.ts from secrets
+        run: |
+          cat > src/config.ts <<'EOF'
+          export const CAPTCHA_SERVER_URL = "${{ secrets.DEVVIT_CAPTCHA_SERVER_URL }}";
+          export const CAPTCHA_SECRET_KEY = "${{ secrets.DEVVIT_CAPTCHA_SECRET_KEY }}";
+          export const TELEGRAM_READER_TOKEN = "${{ secrets.DEVVIT_TELEGRAM_READER_TOKEN }}";
+          export const TELEGRAM_CHAT_ID = "${{ secrets.DEVVIT_TELEGRAM_CHAT_ID }}";
+          EOF
+      - name: Authenticate Devvit
+        run: |
+          mkdir -p ~/.devvit
+          echo "${{ secrets.DEVVIT_TOKEN }}" > ~/.devvit/token
+      - name: Type check
+        run: npx tsc --noEmit --skipLibCheck
+      - name: Upload Devvit app
+        run: npx devvit upload
